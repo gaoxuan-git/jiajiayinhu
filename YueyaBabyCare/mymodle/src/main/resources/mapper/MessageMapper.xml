@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.lidexin.business.mapper.MessageMapper">
+
+    <!-- 获取联系人列表 -->
+    <select id="selectContactList" resultType="com.lidexin.business.vo.ContactVO">
+        SELECT 
+            contact_type AS contactType,
+            contact_id AS contactId,
+            MAX(last_message) AS lastMessage,
+            MAX(last_message_time) AS lastMessageTime
+        FROM (
+            -- 我发送的消息（对方是联系人）
+            SELECT 
+                receiver_type AS contact_type,
+                receiver_id AS contact_id,
+                content AS last_message,
+                create_time AS last_message_time
+            FROM message
+            WHERE sender_type = #{userType}
+              AND sender_id = #{userId}
+              AND deleted = 0
+              AND msg_type = 3
+            
+            UNION ALL
+            
+            -- 我收到的消息（对方是联系人）
+            SELECT 
+                sender_type AS contact_type,
+                sender_id AS contact_id,
+                content AS last_message,
+                create_time AS last_message_time
+            FROM message
+            WHERE receiver_type = #{userType}
+              AND receiver_id = #{userId}
+              AND deleted = 0
+              AND msg_type = 3
+        ) AS combined
+        GROUP BY contact_type, contact_id
+        ORDER BY MAX(last_message_time) DESC
+    </select>
+
+    <!-- 获取与某联系人的未读消息数 -->
+    <select id="selectUnreadCountWithContact" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM message
+        WHERE receiver_type = #{receiverType}
+          AND receiver_id = #{receiverId}
+          AND sender_type = #{senderType}
+          AND sender_id = #{senderId}
+          AND is_read = 0
+          AND deleted = 0
+          AND msg_type = 3
+    </select>
+
+    <!-- 家长端：获取有业务关系的机构列表 -->
+    <select id="selectInstitutionsForParent" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT DISTINCT
+            3 AS contactType,
+            i.id AS contactId,
+            i.name AS contactName,
+            i.logo AS contactAvatar,
+            i.contact_phone AS contactPhone
+        FROM institution i
+        WHERE i.deleted = 0 AND i.status = 1
+          AND i.id IN (
+              -- 有预约记录的机构
+              SELECT DISTINCT institution_id FROM appointment WHERE parent_id = #{parentId} AND deleted = 0
+              UNION
+              -- 有护理计划的机构（通过宝宝关联）
+              SELECT DISTINCT cp.institution_id FROM care_plan cp
+              INNER JOIN baby b ON cp.baby_id = b.id
+              WHERE b.parent_id = #{parentId} AND cp.deleted = 0 AND b.deleted = 0
+              UNION
+              -- 有订单的机构
+              SELECT DISTINCT institution_id FROM orders WHERE parent_id = #{parentId} AND deleted = 0
+          )
+        <if test="keyword != null and keyword != ''">
+          AND (i.name LIKE CONCAT('%', #{keyword}, '%') OR i.contact_phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY i.name
+    </select>
+
+    <!-- 家长端：获取服务过的保姆列表 -->
+    <select id="selectNanniesForParent" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT DISTINCT
+            2 AS contactType,
+            n.id AS contactId,
+            n.real_name AS contactName,
+            n.avatar AS contactAvatar,
+            n.phone AS contactPhone
+        FROM nanny n
+        WHERE n.deleted = 0 AND n.status = 1
+          AND n.id IN (
+              -- 护理计划中分配的保姆
+              SELECT DISTINCT cp.nanny_id FROM care_plan cp
+              INNER JOIN baby b ON cp.baby_id = b.id
+              WHERE b.parent_id = #{parentId} AND cp.deleted = 0 AND b.deleted = 0 AND cp.nanny_id IS NOT NULL
+              UNION
+              -- 预约中分配的保姆
+              SELECT DISTINCT nanny_id FROM appointment WHERE parent_id = #{parentId} AND deleted = 0 AND nanny_id IS NOT NULL
+          )
+        <if test="keyword != null and keyword != ''">
+          AND (n.real_name LIKE CONCAT('%', #{keyword}, '%') OR n.phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY n.real_name
+    </select>
+
+    <!-- 保姆端：获取服务过的家长列表 -->
+    <select id="selectParentsForNanny" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT DISTINCT
+            1 AS contactType,
+            p.id AS contactId,
+            p.real_name AS contactName,
+            p.avatar AS contactAvatar,
+            p.phone AS contactPhone
+        FROM parent p
+        WHERE p.deleted = 0 AND p.status = 1
+          AND p.id IN (
+              -- 护理计划中服务的家长（通过宝宝关联）
+              SELECT DISTINCT b.parent_id FROM care_plan cp
+              INNER JOIN baby b ON cp.baby_id = b.id
+              WHERE cp.nanny_id = #{nannyId} AND cp.deleted = 0 AND b.deleted = 0
+              UNION
+              -- 预约中服务的家长
+              SELECT DISTINCT parent_id FROM appointment WHERE nanny_id = #{nannyId} AND deleted = 0
+          )
+        <if test="keyword != null and keyword != ''">
+          AND (p.real_name LIKE CONCAT('%', #{keyword}, '%') OR p.phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY p.real_name
+    </select>
+
+    <!-- 保姆端：获取所属机构 -->
+    <select id="selectInstitutionForNanny" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT
+            3 AS contactType,
+            i.id AS contactId,
+            i.name AS contactName,
+            i.logo AS contactAvatar,
+            i.contact_phone AS contactPhone
+        FROM institution i
+        INNER JOIN nanny n ON n.institution_id = i.id
+        WHERE n.id = #{nannyId} AND n.deleted = 0 AND i.deleted = 0 AND i.status = 1
+    </select>
+
+    <!-- 机构端：获取有业务关系的家长列表 -->
+    <select id="selectParentsForInstitution" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT DISTINCT
+            1 AS contactType,
+            p.id AS contactId,
+            p.real_name AS contactName,
+            p.avatar AS contactAvatar,
+            p.phone AS contactPhone
+        FROM parent p
+        WHERE p.deleted = 0 AND p.status = 1
+          AND p.id IN (
+              -- 有预约记录的家长
+              SELECT DISTINCT parent_id FROM appointment WHERE institution_id = #{institutionId} AND deleted = 0
+              UNION
+              -- 有护理计划的家长（通过宝宝关联）
+              SELECT DISTINCT b.parent_id FROM care_plan cp
+              INNER JOIN baby b ON cp.baby_id = b.id
+              WHERE cp.institution_id = #{institutionId} AND cp.deleted = 0 AND b.deleted = 0
+              UNION
+              -- 有订单的家长
+              SELECT DISTINCT parent_id FROM orders WHERE institution_id = #{institutionId} AND deleted = 0
+          )
+        <if test="keyword != null and keyword != ''">
+          AND (p.real_name LIKE CONCAT('%', #{keyword}, '%') OR p.phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY p.real_name
+    </select>
+
+    <!-- 管理员端：获取所有家长列表 -->
+    <select id="selectAllParents" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT
+            1 AS contactType,
+            p.id AS contactId,
+            p.real_name AS contactName,
+            p.avatar AS contactAvatar,
+            p.phone AS contactPhone
+        FROM parent p
+        WHERE p.deleted = 0 AND p.status = 1
+        <if test="keyword != null and keyword != ''">
+          AND (p.real_name LIKE CONCAT('%', #{keyword}, '%') OR p.phone LIKE CONCAT('%', #{keyword}, '%') OR p.username LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY p.create_time DESC
+    </select>
+
+    <!-- 管理员端：获取所有保姆列表 -->
+    <select id="selectAllNannies" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT
+            2 AS contactType,
+            n.id AS contactId,
+            n.real_name AS contactName,
+            n.avatar AS contactAvatar,
+            n.phone AS contactPhone
+        FROM nanny n
+        WHERE n.deleted = 0 AND n.status = 1
+        <if test="keyword != null and keyword != ''">
+          AND (n.real_name LIKE CONCAT('%', #{keyword}, '%') OR n.phone LIKE CONCAT('%', #{keyword}, '%') OR n.username LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY n.create_time DESC
+    </select>
+
+    <!-- 管理员端：获取所有机构列表 -->
+    <select id="selectAllInstitutions" resultType="com.lidexin.business.vo.AvailableContactVO">
+        SELECT
+            3 AS contactType,
+            i.id AS contactId,
+            i.name AS contactName,
+            i.logo AS contactAvatar,
+            i.contact_phone AS contactPhone
+        FROM institution i
+        WHERE i.deleted = 0 AND i.status = 1
+        <if test="keyword != null and keyword != ''">
+          AND (i.name LIKE CONCAT('%', #{keyword}, '%') OR i.contact_phone LIKE CONCAT('%', #{keyword}, '%') OR i.username LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY i.create_time DESC
+    </select>
+
+</mapper>

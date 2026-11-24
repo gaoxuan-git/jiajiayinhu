@@ -1,0 +1,171 @@
+spring:
+  # 环境配置（dev-开发环境，prod-生产环境）
+  profiles:
+    active: dev
+
+  # 应用名称
+  application:
+    name: mymodle
+
+  # 解决 Swagger 与 Spring Boot 2.6+ 的兼容性问题
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+
+  # 数据源配置
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/yueya_care?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: root
+    # Hikari连接池配置
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      connection-timeout: 30000
+      connection-test-query: SELECT 1
+
+  # Redis配置
+  redis:
+    host: localhost
+    port: 6379
+    password: 12345 # 无密码留空
+    database: 0
+    timeout: 3000ms
+    # Lettuce连接池配置
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
+
+  # Jackson配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 50MB
+
+  # Thymeleaf配置（用于PDF模板）
+  thymeleaf:
+    cache: false
+    prefix: classpath:/templates/
+    suffix: .html
+    encoding: UTF-8
+    mode: HTML
+
+# 服务器配置
+server:
+  port: 8080
+  servlet:
+    context-path: /
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  # Tomcat配置
+  tomcat:
+    uri-encoding: UTF-8
+    threads:
+      max: 200
+      min-spare: 10
+
+# MyBatis-Plus配置
+mybatis-plus:
+  # Mapper XML文件位置
+  mapper-locations: classpath*:/mapper/**/*.xml
+  # 实体类包路径
+  type-aliases-package: com.lidexin.mymodle.po
+  # 全局配置
+  global-config:
+    # 数据库字段驼峰命名
+    db-config:
+      # 主键策略：自增
+      id-type: auto
+      # 逻辑删除字段名
+      logic-delete-field: deleted
+      # 逻辑删除值（删除后的值）
+      logic-delete-value: 1
+      # 逻辑未删除值（正常值）
+      logic-not-delete-value: 0
+      # 字段策略：非空判断
+      insert-strategy: not_null
+      update-strategy: not_null
+      select-strategy: not_empty
+    # 关闭banner
+    banner: false
+  # 配置项
+  configuration:
+    # 自动驼峰命名转换
+    map-underscore-to-camel-case: true
+    # 开启缓存
+    cache-enabled: true
+    # 配置默认的执行器
+    default-executor-type: reuse
+    # 打印SQL日志（开发环境建议开启，生产环境关闭）
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# 日志配置
+logging:
+  level:
+    root: info
+    com.lidexin.mymodle: debug
+    com.baomidou.mybatisplus: debug
+  # 日志文件配置
+  file:
+    path: ./logs
+    name: ./logs/mymodle.log
+  pattern:
+    console: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+    file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{50} - %msg%n'
+  logback:
+    rollingpolicy:
+      max-file-size: 100MB
+      max-history: 30
+      total-size-cap: 10GB
+
+# 项目自定义配置
+mymodle:
+  # JWT配置
+  jwt:
+    # 密钥
+    secret: mymodle-secret-key-change-in-production-environment-for-security
+    # 过期时间（秒）7天
+    expiration: 604800
+    # token头部
+    header: Authorization
+    # token前缀
+    prefix: Bearer
+
+  # 文件上传配置
+  upload:
+    # 上传路径（绝对路径）
+    path: C:\workspace\myself\悦芽婴护管理系统\upload
+    # 访问路径
+    url: /upload
+
+  # 接口文档配置
+  swagger:
+    enabled: true
+    title: MyModle API接口文档
+    description: MyModle项目接口文档
+    version: 1.0.0
+    base-package: com.lidexin.mymodle.controller
+    contact:
+      name: 张三
+      email: your-email@example.com
+      url: https://github.com/yourusername

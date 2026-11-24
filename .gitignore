@@ -1,0 +1,14 @@
+.DS_Store
+.thesis-work/
+.screenshots/
+**/.claude/
+**/.idea/
+**/.vscode/
+**/node_modules/
+**/target/
+**/dist/
+**/.cache/
+**/*.log
+**/.env.local
+**/.env.*.local
+~$*
